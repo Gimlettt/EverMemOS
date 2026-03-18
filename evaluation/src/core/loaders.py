@@ -263,6 +263,10 @@ def _convert_locomo_qa_pair(qa_item: dict, conv_id: str, qa_idx: int) -> QAPair:
     # If has all_options (PersonaMem multiple choice), save to metadata
     if "all_options" in qa_item:
         metadata["all_options"] = qa_item["all_options"]
+
+    # If is_ranking (MobileMem ranking questions), save to metadata
+    if qa_item.get("is_ranking"):
+        metadata["is_ranking"] = True
     
     # Prefer question_id from data if exists, otherwise generate unique ID
     question_id = qa_item.get("question_id")

@@ -2,6 +2,7 @@
 Answer stage - generate answers.
 """
 import asyncio
+import json
 import time
 from typing import List, Optional
 from logging import Logger
@@ -144,20 +145,50 @@ async def run_answer_stage(
                 # Build context
                 context = build_context(search_result)
                 
+                # Categories that require structured output (answer + reason + key_points)
+                STRUCTURED_CATEGORIES = {
+                    "habit_preference_identification",
+                    "habit_preference_tracking",
+                    "reasoning_for_pref_behaviors",
+                }
+                needs_structured = qa.category in STRUCTURED_CATEGORIES
+
                 # Detect multiple-choice and enhance question if needed
                 query = qa.question
                 if "all_options" in qa.metadata:
                     options = qa.metadata["all_options"]
                     options_text = "\n".join([f"{key} {value}" for key, value in options.items()])
-                    
-                    # Integrate options and requirements into question
-                    query = f"""{qa.question}
+
+                    if qa.metadata.get("is_ranking"):
+                        # Ranking question: rank all options from most to least likely
+                        query = f"""{qa.question}
+
+OPTIONS:
+{options_text}
+
+IMPORTANT: This is a ranking question. Based on the context, rank ALL options from most likely to least likely. In your FINAL ANSWER, return ONLY the option letters in order, separated by commas (e.g., "B, A, C"), nothing else."""
+                    else:
+                        # Single-answer multiple-choice
+                        query = f"""{qa.question}
 
 OPTIONS:
 {options_text}
 
 IMPORTANT: This is a multiple-choice question. You MUST analyze the context and select the BEST option. In your FINAL ANSWER, return ONLY the option letter like (a), (b), (c), or (d), nothing else."""
-                
+
+                elif needs_structured:
+                    query = f"""{qa.question}
+
+Respond in JSON format with the following fields:
+- "answer": your concise answer to the question
+- "key_points": a list of key points that support your answer (short phrases)
+- "reason": a brief explanation of your reasoning
+
+Example format:
+{{"answer": "...", "key_points": ["point 1", "point 2"], "reason": "..."}}
+
+IMPORTANT: Return ONLY valid JSON, nothing else."""
+
                 # Call adapter's answer method with timeout and retry
                 max_retries = 3
                 timeout_seconds = 120.0  # 3 minutes timeout per attempt
@@ -189,7 +220,25 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 tqdm.write(f"  ⚠️ Answer generation failed for {qa.question_id}: {e}")
                 answer = "Error: Failed to generate answer"
                 failed += 1
-            
+
+            # Parse structured response for categories that need key_points/reason
+            extra_metadata = {}
+            if needs_structured and answer and not answer.startswith("Error:"):
+                try:
+                    # Strip markdown code fences if present
+                    raw = answer.strip()
+                    if raw.startswith("```"):
+                        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+                        raw = raw.rsplit("```", 1)[0]
+                    parsed = json.loads(raw)
+                    extra_metadata["key_points"] = parsed.get("key_points", [])
+                    extra_metadata["reason"] = parsed.get("reason", "")
+                    answer = parsed.get("answer", answer)
+                except (json.JSONDecodeError, AttributeError):
+                    tqdm.write(f"  ⚠️ Failed to parse structured response for {qa.question_id}, keeping raw answer")
+
+            result_metadata = {**qa.metadata, **extra_metadata}
+
             result = AnswerResult(
                 question_id=qa.question_id,
                 question=qa.question,
@@ -197,8 +246,8 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 golden_answer=qa.answer,
                 category=qa.category,
                 conversation_id=search_result.conversation_id,
-                formatted_context=context,  # Save actual context used
-                metadata=qa.metadata,  # Pass metadata (contains all_options for multiple-choice)
+                formatted_context=context,
+                metadata=result_metadata,
             )
             
             # Save result

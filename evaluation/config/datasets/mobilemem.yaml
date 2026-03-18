@@ -1,0 +1,23 @@
+# MobileMem Dataset Configuration
+
+name: "mobilemem"
+version: "1.0"
+description: "MobileMem personal memory benchmark - single user (kevin) with 359 sessions"
+
+# Memory language setting
+memory_language: "en"
+
+# Data configuration
+data:
+  path: "mobilemem/"
+  format: "mobilemem"  # Auto-converts to LoCoMo format
+
+# Evaluation configuration
+evaluation:
+  type: "llm_judge"
+  llm:
+    provider: "openai"
+    model: "gpt-4o-mini"
+    api_key: "${LLM_API_KEY}"
+    base_url: "${LLM_BASE_URL:https://openrouter.ai/api/v1}"
+  num_runs: 3
