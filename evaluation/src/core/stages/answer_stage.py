@@ -160,13 +160,21 @@ async def run_answer_stage(
                     options_text = "\n".join([f"{key} {value}" for key, value in options.items()])
 
                     if qa.metadata.get("is_ranking"):
-                        # Ranking question: rank all options from most to least likely
+                        # Ranking question: rank all options from most to least likely, with reason
+                        needs_structured = True
                         query = f"""{qa.question}
 
 OPTIONS:
 {options_text}
 
-IMPORTANT: This is a ranking question. Based on the context, rank ALL options from most likely to least likely. In your FINAL ANSWER, return ONLY the option letters in order, separated by commas (e.g., "B, A, C"), nothing else."""
+Respond in JSON format with the following fields:
+- "answer": the option letters ranked from most likely to least likely, separated by commas (e.g., "B, A, C")
+- "reason": a brief explanation of why you ranked them in this order
+
+Example format:
+{{"answer": "B, A, C", "reason": "..."}}
+
+IMPORTANT: Return ONLY valid JSON, nothing else."""
                     else:
                         # Single-answer multiple-choice
                         query = f"""{qa.question}
