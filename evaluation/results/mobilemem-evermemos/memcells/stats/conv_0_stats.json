@@ -1,0 +1,13 @@
+{
+  "conv_id": "0",
+  "memcells": 477,
+  "clustering_enabled": true,
+  "profile_enabled": false,
+  "foresight_enabled": false,
+  "clustering": {
+    "total_memcells": 477,
+    "clustered_memcells": 477,
+    "new_clusters": 186,
+    "failed_embeddings": 0
+  }
+}
