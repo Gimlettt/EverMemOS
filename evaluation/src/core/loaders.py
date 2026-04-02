@@ -90,13 +90,19 @@ def load_locomo_dataset(data_path: str, dataset_name: str = "locomo", max_conten
     
     for idx, item in enumerate(raw_data):
         # Add dataset prefix to avoid conversation_id conflicts between datasets
-        # Example: locomo_0, longmemeval_0, personamem_0
-        conv_id = f"{dataset_name}_{idx}"
+        # Use user_name if available (e.g., mobilemem_kevin), otherwise use index (e.g., locomo_0)
+        user_name = item.get("user_name")
+        conv_id = f"{dataset_name}_{user_name}" if user_name else f"{dataset_name}_{idx}"
         conversation_data = item.get("conversation", {})
         qa_data = item.get("qa", [])
-        
+
         # Convert conversation
         conversation = _convert_locomo_conversation(conversation_data, conv_id, max_content_length=max_content_length)
+
+        # Propagate user_name from converted data (e.g., MobileMem) into conversation metadata
+        if "user_name" in item:
+            conversation.metadata["user_name"] = item["user_name"]
+
         conversations.append(conversation)
         
         # Convert QA pairs
